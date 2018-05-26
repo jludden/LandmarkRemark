@@ -3,8 +3,8 @@ package me.jludden.landmarkremark
 import com.google.android.gms.maps.model.LatLng
 
 data class Landmark(
-        val location: PublicLatLng = PublicLatLng(),
         val remark: String = "",
+        val location: PublicLatLng = PublicLatLng(),
         val user: String = "",
         var id: String = ""
 )

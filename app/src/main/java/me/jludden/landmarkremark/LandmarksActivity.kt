@@ -1,11 +1,16 @@
 package me.jludden.landmarkremark
 
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Bundle
+import android.support.design.widget.Snackbar
 import android.support.v4.app.ActivityCompat
 import android.support.v7.app.AppCompatActivity
 import android.util.Log
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -16,15 +21,14 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.firebase.database.*
 
-class LandmarksActivity : AppCompatActivity(), OnMapReadyCallback {
+class LandmarksActivity : AppCompatActivity(), OnMapReadyCallback, CreateLandmarkDialog.DialogListener {
+
 
     private lateinit var map: GoogleMap
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-
-
-
     private lateinit var firebaseDB: DatabaseReference
     private val landmarks = mutableListOf<Landmark>()
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,8 +40,7 @@ class LandmarksActivity : AppCompatActivity(), OnMapReadyCallback {
 
         //set up firebase database
         firebaseDB = FirebaseDatabase.getInstance().reference
-//        testAdd(firebaseDB todo del
-
+//        testAdd(firebaseDB) //todo del
 
         //set up the location permissions
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
@@ -45,19 +48,7 @@ class LandmarksActivity : AppCompatActivity(), OnMapReadyCallback {
             Log.d(TAG, "Requesting Map Location Permissions")
             ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION), 200)
         }
-
     }
-
-    /*//
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if(requestCode == REQUEST_CHECK_SETTINGS){
-            if(resultCode == Activity.RESULT_OK){
-                Log.d(TAG, "onActivityResult Map Location Permissions granted")
-            }
-        }
-        Log.e(TAG, "onActivityResult Map Location Permissions not granted")
-    }*/
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
@@ -77,34 +68,73 @@ class LandmarksActivity : AppCompatActivity(), OnMapReadyCallback {
 
         if(checkLocationPermission()) map.isMyLocationEnabled = true
 
-        map = googleMap
         setupLandmarks()
 
         //special on-click for my location pin
-        if(map.isMyLocationEnabled) {
-            map.setOnMyLocationClickListener {
-                //presenter.showAddNewLandmark(it)
-                //todo
-                Log.d(LandmarksActivity.TAG, "onmap location clicked")
-            }
+        map.setOnMyLocationClickListener {
+            //presenter.showAddNewLandmark(it)
+            //todo
+            Log.d(LandmarksActivity.TAG, "onmap location clicked")
+            createNewLandmarkDialog()
         }
 
+        //show remark when the find my location button is clicked
+        map.setOnMyLocationButtonClickListener {
+            Log.d(LandmarksActivity.TAG, "onmap location BUTTON clicked")
+            Snackbar.make(findViewById<View>(R.id.map), "Click the blue location dot to save a remark", Snackbar.LENGTH_LONG)
+                    .also { it.setAction("CREATE", {
+                        createNewLandmarkDialog()
+                    }) }
+                    .show()
+            false
+        }
 
         fusedLocationClient.lastLocation //initially center camera on last known location
                 .addOnSuccessListener { location ->
-                    Log.d(LandmarksActivity.TAG, "lastLocation found!!!!!!!!")
                     map.animateCamera(CameraUpdateFactory.newLatLngZoom(location.latlng(), 9f))
                 }
     }
 
+    private fun createNewLandmarkDialog() {
+        Log.d(LandmarksActivity.TAG, "createNewLandmarkDialog createNewLandmarkDialog createNewLandmarkDialog")
 
-    private fun checkLocationPermission() =
-            ActivityCompat.checkSelfPermission(this,
-                    android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+        checkLocationPermission() //todo handle the no
+
+        fusedLocationClient.lastLocation
+                .addOnSuccessListener { location ->
+                    Log.d(LandmarksActivity.TAG, "lastLocation found createNewLandmarkDialog")
+                    val dialog = CreateLandmarkDialog.newInstance(location)
+                    dialog.show(fragmentManager, "CreateLandmark")
+                }
+
+
+//        val dialog = CreateLandmarkDialog.newInstance(map)
+//        dialog.show(fragmentManager, "CreateLandmark") //todo not support fm?
+
+
+
+//        CreateLandmarkDialog().show(fragmentManager, "CreateLandmark")
+    }
+
+    override fun onDialogAccept(message: String, location: Location) {
+        val user = "123" //todo get user
+        createLandmark(message, location, user)
+    }
+
+    private fun createLandmark(message: String, location: Location, user: String) {
+        val loc  = location.latlng().toPublicLatLng()
+        Landmark(message, loc, user)
+                .apply {
+                    val key = firebaseDB.child(LANDMARKS_CHILD).push().key
+                    this.id = key
+                    firebaseDB.child(LANDMARKS_CHILD).child(key).setValue(this)
+                }
+    }
 
     //todo probably want to move to ChildEventListener 
     fun setupLandmarks() {
-        val landmarkListener = object : ValueEventListener {
+        firebaseDB.child(LANDMARKS_CHILD).addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 landmarks.clear()
                 snapshot.children.mapNotNullTo(landmarks) {
@@ -117,41 +147,8 @@ class LandmarksActivity : AppCompatActivity(), OnMapReadyCallback {
             override fun onCancelled(error: DatabaseError) {
                 Log.e(TAG, "Firebase ValueEventListener.onCancelled() ${error.toException()}")
             }
-        }
-
-        firebaseDB.child(LANDMARKS_CHILD).addValueEventListener(landmarkListener)
-
-
-
-        //todo del above
-/*
-
-        firebaseDB.child(LANDMARKS_CHILD).addChildEventListener(object : ChildEventListener {
-            override fun onCancelled(error: DatabaseError) {
-                Log.e(TAG, "Firebase ChildEventListener.onCancelled() ${error.toException()}")
-            }
-
-            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {
-                Log.e(TAG, "Firebase ChildEventListener.onChildMoved() $previousChildName")
-            }
-
-            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
-                Log.e(TAG, "Firebase ChildEventListener.onChildChanged() $previousChildName")
-            }
-
-            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
-                Log.d(TAG, "Firebase ChildEventListener.onChildAdded() $previousChildName")
-            }
-
-            override fun onChildRemoved(snapshot: DataSnapshot) {
-                Log.e(TAG, "Firebase ChildEventListener.onChildRemoved() ")
-            }
-
         })
-*/
-
     }
-
 
     fun addLandmarksToMap() {
         map.clear()
@@ -163,6 +160,28 @@ class LandmarksActivity : AppCompatActivity(), OnMapReadyCallback {
 
     fun Location.latlng(): LatLng = LatLng(this.latitude, this.longitude)
 
+    private fun checkLocationPermission() =
+            ActivityCompat.checkSelfPermission(this,
+                    android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean =
+        menuInflater.inflate(R.menu.main_toolbar, menu).run { true }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        when(item.itemId) {
+            R.id.action_search -> {
+                Log.e(TAG, "Starting search activity")
+                onSearchRequested()
+            }
+            R.id.settings -> {
+                Log.d(TAG, "Other settings selected")
+            }
+        }
+        return true
+    }
+
+
+    //todo del - add some fake data
     fun testAdd(firebaseDatabase: DatabaseReference) {
 
         val sydney = LatLng(-34.0, 151.0).toPublicLatLng()
@@ -173,9 +192,9 @@ class LandmarksActivity : AppCompatActivity(), OnMapReadyCallback {
         val user2 = "testUser2"
 
         val landmarks: List<Landmark> = mutableListOf(
-                Landmark(sydney, "opera house", user1),
-                Landmark(nyc, "times square", user1),
-                Landmark(shanghai, "oriental pearl", user2)
+                Landmark("opera house", sydney, user1),
+                Landmark("times square", nyc, user1),
+                Landmark("oriental pearl", shanghai, user2)
         )
 
         landmarks.forEach {
@@ -189,4 +208,9 @@ class LandmarksActivity : AppCompatActivity(), OnMapReadyCallback {
         const val TAG = "LandmarksActivity"
         const val LANDMARKS_CHILD = "landmarks"
     }
+}
+
+//Util functions todo
+fun Location.toDisplayString(): String? {
+    return "(${"%.2f".format(latitude)}, ${"%.2f".format(longitude)})"
 }
