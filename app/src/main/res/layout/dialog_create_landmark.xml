@@ -6,7 +6,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Create Landmark"
+        android:text="@string/create_landmark"
         android:textAlignment="center"
         android:textColor="@color/colorAccent"
         android:layout_margin="4dp"

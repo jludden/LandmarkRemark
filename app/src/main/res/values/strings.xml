@@ -11,5 +11,6 @@
     <string name="no_landmark_location">Unable to find your location</string>
     <string name="create_new_landmark_instruct">Click the blue location dot to save a remark</string>
     <string name="change_username">Change username:</string>
-    <string name="ok">Ok</string>
+    <string name="ok">OK</string>
+    <string name="create_landmark">Create Landmark</string>
 </resources>

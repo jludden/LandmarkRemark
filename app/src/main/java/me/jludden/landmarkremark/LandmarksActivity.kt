@@ -45,17 +45,14 @@ class LandmarksActivity: AppCompatActivity(),
         presenter = LandmarksPresenter(this)
     }
 
-    //todo del
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         when (requestCode) {
             200 -> {
-                if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    Log.d(TAG, "onRequestPermissionsResult granted")
-                }
+                if (grantResults[0] == PackageManager.PERMISSION_GRANTED && checkLocationPermission())
+                    map.isMyLocationEnabled = true
             }
         }
-        Log.e(TAG, "onRequestPermissionsResult not granted")
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
@@ -76,13 +73,6 @@ class LandmarksActivity: AppCompatActivity(),
                     .show()
             false
         }
-
-        //initially center camera on last known location todo del?
-/*        fusedLocationClient.lastLocation
-                .addOnSuccessListener { location ->
-                    if(location != null)
-                        map.animateCamera(CameraUpdateFactory.newLatLngZoom(location.toLatLng(), 9f))
-                }*/
     }
 
     //Create a dialog for the user to add a new landmark remark
