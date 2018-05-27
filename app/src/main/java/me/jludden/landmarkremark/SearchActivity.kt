@@ -11,7 +11,10 @@ import com.google.firebase.database.*
 import kotlinx.android.synthetic.main.search_item.view.*
 import android.app.SearchManager
 import android.content.Intent
+import android.view.View.GONE
+import android.view.View.VISIBLE
 import android.widget.TextView
+import kotlinx.android.synthetic.main.activity_search.*
 import me.jludden.landmarkremark.LandmarksActivity.Companion.LANDMARKS_CHILD
 
 /**
@@ -49,23 +52,20 @@ class SearchActivity : AppCompatActivity() {
                     it.getValue<Landmark>(Landmark::class.java)
                 }
 
-                val filteredLandmarks = allLandmarks.filter{
+                landmarksAdapter.landmarksList = allLandmarks.filter{
                     it.user.toLowerCase().contains(query) ||
                     it.remark.toLowerCase().contains(query)
-                }
-
-                landmarksAdapter.landmarksList = filteredLandmarks
-                if(filteredLandmarks.isEmpty()) showEmptyMessage(query)
+                }.apply {
+                    no_results.let { //show message if list is empty
+                        it.text = getString(R.string.no_search_results, query)
+                        it.visibility = if(this.isEmpty()) VISIBLE else GONE
+                    } }
             }
 
             override fun onCancelled(error: DatabaseError) {
                 Log.e(TAG, "Firebase ValueEventListener.onCancelled() ${error.toException()}")
             }
         })
-    }
-
-    private fun showEmptyMessage(query: String) {
-//        findViewById<TextView>() todo
     }
 
     //adapter to hold the search results

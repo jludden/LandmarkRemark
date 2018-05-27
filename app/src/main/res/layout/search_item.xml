@@ -16,11 +16,32 @@
         android:layout_height="match_parent"
         android:padding="8dp">
 
-        <TextView
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/colorAccent"
+                android:text="@string/username_label"
+                android:paddingRight="6dp"
+                />
+
+            <TextView
+                android:id="@+id/landmark_user"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                 />
+
+        </LinearLayout>
+
+  <!--      <TextView
             android:id="@+id/landmark_user"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="@color/colorAccent" />
+            />-->
 
         <TextView
             android:id="@+id/landmark_location"
@@ -30,8 +51,7 @@
         <TextView
             android:id="@+id/landmark_message"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="@color/colorAccent" />
+            android:layout_height="wrap_content" />
 
 
     </LinearLayout>
