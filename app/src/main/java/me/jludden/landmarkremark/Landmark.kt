@@ -23,16 +23,14 @@ data class PublicLatLng(
 
     fun toLatLng() = LatLng(lat, lng)
 
-    override fun toString(): String {
-        return formatLatLng(lat, lng)
-    }
+    override fun toString(): String = formatLatLng(lat, lng)
 }
 
 /**
  * Global utility and extension functions
  */
-//extension function to transform google maps LatLng to my implementation
-fun LatLng.toPublicLatLng(): PublicLatLng = PublicLatLng(this.latitude, this.longitude)
+//extension function to transform google maps location object to my public latlng class
+fun Location.toPublicLatLng(): PublicLatLng = PublicLatLng(this.latitude, this.longitude)
 
 //get a nicely formatted location to string
 fun Location.toDisplayString(): String? = formatLatLng(latitude, longitude)

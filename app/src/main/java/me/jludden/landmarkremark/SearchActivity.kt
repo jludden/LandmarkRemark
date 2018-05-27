@@ -13,12 +13,12 @@ import android.app.SearchManager
 import android.content.Intent
 import android.view.View.GONE
 import android.view.View.VISIBLE
-import android.widget.TextView
 import kotlinx.android.synthetic.main.activity_search.*
-import me.jludden.landmarkremark.LandmarksActivity.Companion.LANDMARKS_CHILD
+import me.jludden.landmarkremark.LandmarksPresenter.Companion.LANDMARKS_CHILD
 
 /**
- * ability to search for a note based on contained text or username
+ * Activity that provides the ability to search for a note based on contained text or username
+ * there isn't much business logic to implement here so I did not implement MVC architecture
  */
 class SearchActivity : AppCompatActivity() {
 
@@ -38,7 +38,6 @@ class SearchActivity : AppCompatActivity() {
 
         if (Intent.ACTION_SEARCH == intent.action) { //get the passed in search query
             val query = intent.getStringExtra(SearchManager.QUERY)
-            Log.e(TAG, "do my search: $query")
             doSearch(query.toLowerCase())
         }
     }
@@ -52,14 +51,22 @@ class SearchActivity : AppCompatActivity() {
                     it.getValue<Landmark>(Landmark::class.java)
                 }
 
+                //Update the Adapter
                 landmarksAdapter.landmarksList = allLandmarks.filter{
                     it.user.toLowerCase().contains(query) ||
                     it.remark.toLowerCase().contains(query)
-                }.apply {
-                    no_results.let { //show message if list is empty
-                        it.text = getString(R.string.no_search_results, query)
-                        it.visibility = if(this.isEmpty()) VISIBLE else GONE
-                    } }
+                }
+
+                //Show message if no results are found
+                if(!landmarksAdapter.landmarksList.isEmpty()) {
+                    no_results.visibility = GONE
+                }
+                else {
+                    no_results.apply {
+                        text = getString(R.string.no_search_results, query)
+                        visibility = VISIBLE
+                    }
+                }
             }
 
             override fun onCancelled(error: DatabaseError) {

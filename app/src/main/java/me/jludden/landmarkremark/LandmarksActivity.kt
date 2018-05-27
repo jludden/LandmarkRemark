@@ -14,22 +14,19 @@ import android.view.View
 import android.widget.EditText
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
-import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
-import com.google.firebase.database.*
 
-class LandmarksActivity : AppCompatActivity(), OnMapReadyCallback, CreateLandmarkDialog.DialogListener {
+class LandmarksActivity: AppCompatActivity(),
+        OnMapReadyCallback,
+        CreateLandmarkDialog.DialogListener,
+        LandmarksContract.View {
 
     private lateinit var map: GoogleMap
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private lateinit var firebaseDB: DatabaseReference
-    private val landmarks = mutableListOf<Landmark>()
-    private var username = "Anonymous"
-
+    override lateinit var presenter: LandmarksContract.Presenter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,16 +35,17 @@ class LandmarksActivity : AppCompatActivity(), OnMapReadyCallback, CreateLandmar
                 .findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
 
-        //set up firebase database
-        firebaseDB = FirebaseDatabase.getInstance().reference
-
         //set up the location permissions. If they don't accept, they will still be able to see other user's landmarks
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         if(!checkLocationPermission()) {    //Request current location permission
             ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION), 200)
         }
+
+        //set up the presenter to control the logic
+        presenter = LandmarksPresenter(this)
     }
 
+    //todo del
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         when (requestCode) {
@@ -66,74 +64,44 @@ class LandmarksActivity : AppCompatActivity(), OnMapReadyCallback, CreateLandmar
 
         if(checkLocationPermission()) map.isMyLocationEnabled = true
 
-        setupLandmarksListener() //add landmarks to map and continue to listen for updates
+        presenter.start() //start the presenter - it will populate the map with landmarks
 
         //special on-click for my location pin
-        map.setOnMyLocationClickListener { createNewLandmarkDialog() }
+        map.setOnMyLocationClickListener { presenter.onMyLocationClick() }
 
         //show a snackbar message when the find my location button is clicked
         map.setOnMyLocationButtonClickListener {
             Snackbar.make(findViewById<View>(R.id.map), getString(R.string.create_new_landmark_instruct), Snackbar.LENGTH_LONG)
-                    .also { it.setAction("CREATE", {
-                        createNewLandmarkDialog()
-                    }) }
+                    .setAction("CREATE", { presenter.onMyLocationClick() })
                     .show()
             false
         }
 
-        //initially center camera on last known location
-        fusedLocationClient.lastLocation
+        //initially center camera on last known location todo del?
+/*        fusedLocationClient.lastLocation
                 .addOnSuccessListener { location ->
                     if(location != null)
-                        map.animateCamera(CameraUpdateFactory.newLatLngZoom(location.latlng(), 9f))
-                }
+                        map.animateCamera(CameraUpdateFactory.newLatLngZoom(location.toLatLng(), 9f))
+                }*/
     }
 
     //Create a dialog for the user to add a new landmark remark
-    private fun createNewLandmarkDialog() {
+    override fun showCreateLandmarkDialog() {
         if (!checkLocationPermission()) return
 
         fusedLocationClient.lastLocation
                 .addOnSuccessListener { location ->
-                    Log.d(LandmarksActivity.TAG, "lastLocation found createNewLandmarkDialog")
                     if(location == null) Snackbar.make(findViewById<View>(R.id.map), getString(R.string.no_landmark_location), Snackbar.LENGTH_LONG).show()
                     else CreateLandmarkDialog.newInstance(location).show(fragmentManager, "CreateLandmark")
                 }
     }
 
     //Called when the landmark creation dialog is accepted
-    override fun onDialogAccept(message: String, location: Location) {
-        createLandmark(message, location, username)
-    }
+    override fun onCreateLandmarkDialogAccepted(message: String, location: Location)
+            = presenter.createNewLandmark(message, location)
 
-    private fun createLandmark(message: String, location: Location, user: String) {
-        val loc  = location.latlng().toPublicLatLng()
-        Landmark(message, loc, user)
-                .apply {
-                    val key = firebaseDB.child(LANDMARKS_CHILD).push().key
-                    this.id = key
-                    firebaseDB.child(LANDMARKS_CHILD).child(key).setValue(this)
-                }
-    }
-
-    //Add landmark markers to the map, and continually listen to updates from Firebase
-    private fun setupLandmarksListener() {
-        firebaseDB.child(LANDMARKS_CHILD).addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                landmarks.clear()
-                snapshot.children.mapNotNullTo(landmarks) {
-                    it.getValue<Landmark>(Landmark::class.java)
-                }
-                addLandmarksToMap()
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.e(TAG, "Firebase ValueEventListener.onCancelled() ${error.toException()}")
-            }
-        })
-    }
-
-    fun addLandmarksToMap() {
+    //Add landmarks to the map
+    override fun showLandmarks(landmarks: List<Landmark>) {
         map.clear()
 
         landmarks.forEach {
@@ -145,72 +113,52 @@ class LandmarksActivity : AppCompatActivity(), OnMapReadyCallback, CreateLandmar
         }
     }
 
-    fun Location.latlng(): LatLng = LatLng(this.latitude, this.longitude)
-
-    private fun checkLocationPermission() =
-            ActivityCompat.checkSelfPermission(this,
-                    android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-
+    //Create the toolbar menu (search, change username, etc.)
     override fun onCreateOptionsMenu(menu: Menu?): Boolean =
         menuInflater.inflate(R.menu.main_toolbar, menu).run { true }
 
+    //Called when a toolbar menu item is selected
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when(item.itemId) {
             R.id.action_search -> {
-                Log.e(TAG, "Starting search activity")
-                onSearchRequested()
+                presenter.onSearchClick()
             }
-            R.id.settings -> {
-                Log.d(TAG, "Other settings selected")
-                showChangeUsernameDialog()
+            R.id.action_change_username -> {
+                presenter.onUsernameChangeClick()
             }
         }
         return true
     }
 
-    fun showChangeUsernameDialog() {
+    //Show the Search Widget
+    override fun showSearchWidget() {
+        onSearchRequested()
+    }
+
+    //Show the Change Username Dialog
+    override fun showChangeUsernameDialog(oldName: String) {
         val newUsernameField = EditText(this)
                 .apply {
-                    setText(username)
+                    setText(oldName)
                     setSingleLine(true) }
         AlertDialog.Builder(this@LandmarksActivity)
                 .setView(newUsernameField)
                 .setMessage(R.string.change_username)
                 .setTitle(R.string.app_name)
-                .setPositiveButton(R.string.ok, { _, _ -> //user accepted
-                    username = newUsernameField.text.toString() })
-                .setNegativeButton(R.string.cancel) { _, _ ->  } //user cancelled
+                .setPositiveButton(R.string.ok, { _, _ -> // user accepted
+                    presenter.updateUsername(newUsernameField.text.toString())})
+                .setNegativeButton(R.string.cancel) { _, _ ->  } // user cancelled
                 .create()
                 .show()
     }
 
-
-    //todo del - add some fake data
-    fun testAdd(firebaseDatabase: DatabaseReference) {
-
-        val sydney = LatLng(-34.0, 151.0).toPublicLatLng()
-        val nyc = LatLng(40.75, -73.98).toPublicLatLng()
-        val shanghai = LatLng(31.23, 121.47).toPublicLatLng()
-
-        val user1 = "testUser1"
-        val user2 = "testUser2"
-
-        val landmarks: List<Landmark> = mutableListOf(
-                Landmark("opera house", sydney, user1),
-                Landmark("times square", nyc, user1),
-                Landmark("oriental pearl", shanghai, user2)
-        )
-
-        landmarks.forEach {
-            val key = firebaseDatabase.child(LANDMARKS_CHILD).push().key
-            it.id = key
-            firebaseDatabase.child(LANDMARKS_CHILD).child(key).setValue(it)
-        }
-    }
+    //Check the ACCESS_FINE_LOCATION permission
+    private fun checkLocationPermission() =
+            ActivityCompat.checkSelfPermission(this,
+                    android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
     companion object {
         const val TAG = "LandmarksActivity"
-        const val LANDMARKS_CHILD = "landmarks"
     }
 }
 
